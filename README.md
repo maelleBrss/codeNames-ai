@@ -1,0 +1,1 @@
+Projet simulant le jeu de société [Code Names](https://codenames.game/)
