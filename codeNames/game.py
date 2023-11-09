@@ -52,13 +52,27 @@ class Player:
         self.role = given_role
 
 
+class Turn:
+    def __init__(self, id: str, team: Team, player: Player):
+        self.id = id
+        self.team = team
+        self.player = player
+
+    def __str__(self):
+        return f"{self.id}, {self.team}, {self.player}"
+
+    def __repr__(self):
+        return f"Turn({self.id}, {self.team}, {self.player})"
+
+
 class Game:
     def __init__(self, id: str, team1: Team, team2: Team):
         self.id = id
         self.team1 = team1
         self.team2 = team2
-        self.words = self.create_pool_words()
-        self.cards = self.create_cards()
+        self.words: List[Word] = self.create_pool_words()
+        self.cards: List[Card] = self.create_cards()
+        self.turns: List[Turn] = []
 
     def setup(self) -> None:
         print(f'=== Game {self.id} ===')
@@ -66,9 +80,11 @@ class Game:
         random.choice([self.team1, self.team2]).is_first = True
         print(f'Team {self.team1.name} -- {self.team1.is_first} -- {self.team1.players}')
         print(f'Team {self.team2.name} -- {self.team2.is_first} -- {self.team2.players}')
-        print(self.cards)
+        # print(self.cards)
         print()
-        self.display()
+        print()
+        self.run_game()
+        # self.display()
 
     def check_requirements(self) -> None:
         assert all(len(team.players) >= 2 for team in [self.team1, self.team2])
@@ -81,12 +97,11 @@ class Game:
     def create_pool_words() -> List[Word]:
         return list(map(lambda w: w.upper(), random.sample(LIST_WORDS, 25)))
 
-    def create_cards(self):
+    def create_cards(self) -> List[Card]:
         list_cards = []
-
         occurrences = {'red': 8, 'blue': 9, 'yellow': 7, 'black': 1}
-
         mapping_color = []
+
         for value, count in occurrences.items():
             mapping_color.extend([value] * count)
         random.shuffle(mapping_color)
@@ -95,17 +110,43 @@ class Game:
             list_cards.append(Card(word=w, color=c))
         return list_cards
 
-    def display(self):
+    def display(self, current_turn: Turn) -> None:
         max_length = max(len(card.word) for card in self.cards)
 
         for i, card in enumerate(self.cards, start=1):
             formatted_name = f"{card.word:{max_length}}"
             if i % 5 == 0:
-                print(f"| {colored(formatted_name, card.color)} |")
+                if current_turn.player == 'spy':
+                    print(f"| {colored(formatted_name, card.color)} |")
+                else:
+                    print(f"| {colored(formatted_name, card.color) if card.revealed else formatted_name} |")
                 if i < len(self.cards):
                     print("+-" + "-" * (6 * max_length) + "-+")
             else:
-                print(f"| {colored(formatted_name, card.color)} ", end=" ")
+                if current_turn.player == 'spy':
+                    print(f"| {colored(formatted_name, card.color)} ", end=" ")
+                else:
+                    print(f"| {colored(formatted_name, card.color) if card.revealed else formatted_name} ", end=" ")
+
+    def run_game(self) -> None:
+        win = False
+        black_card_revealed = False
+        i_turn = 1
+        curr_role = 'spy'
+        curr_team = next(team.is_first for team in [self.team1, self.team2])
+
+        # while not win or not black_card_revealed:
+        while i_turn <= 7:
+            curr_turn = Turn(i_turn, curr_team, curr_role)
+            curr_team = self.team1 if (curr_team == self.team2 and curr_role == 'agent') else (
+                self.team2 if (curr_team == self.team1 and curr_role == 'agent') else (
+                    self.team1 if (curr_team == self.team1 and curr_role == 'spy') else self.team2))
+
+            curr_role = 'agent' if curr_role == 'spy' else 'spy'
+            i_turn += 1
+            self.display(curr_turn)
+
+
 
 
 team_1 = Team('team_1')
