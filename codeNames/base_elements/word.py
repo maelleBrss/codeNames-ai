@@ -1,4 +1,8 @@
-import typing
+import sys
+sys.path.insert(1, '.')
+from codeNames.base_elements.card import Card
+
+from typing import List
 
 
 class Word:
@@ -14,3 +18,11 @@ class Word:
     def update_word(self, new_form: str):
         assert not all(char.isdigit() for char in new_form)
         self.form = new_form
+
+
+class Hint(Word):
+    def __init__(self, form: str, chosen_cards: List[Card], nb_cards: int):
+        Word.__init__(self, form)
+        self.chosen_cards = chosen_cards
+        self.nb_cards = nb_cards
+
