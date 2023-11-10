@@ -20,6 +20,7 @@ class Team:
         self.players: List['Player'] = []
         self.is_first: bool = False
         self.color: str = 'red'
+        self.cards_found: int = 0
 
     def __str__(self):
         return f"{self.name}"
@@ -34,6 +35,14 @@ class Team:
 
             for p in [x for x in self.players if x != random_spy]:
                 p.set_role('agent')
+
+    def wins(self):
+        if self.is_first and self.cards_found == 9:
+            return True
+        elif self.is_first == False and self.cards_found == 8:
+            return True
+        else:
+            return False
 
 
 class Player:
@@ -76,7 +85,7 @@ class Turn:
             print(f"L'indice {hint.form} a été donné pour trouver {hint.nb_cards} carte(s).")
             return True
         else:
-            return False if self.guess(list_cards) == 'END' else True
+            return False if self.guess(list_cards) == 'END' or self.team.wins() else True
 
     def give_hint(self, list_cards: List[Card]) -> Hint:
         hint_given = input("Donnez un indice : ")
@@ -100,39 +109,50 @@ class Turn:
         prev_turn = self.game.turns[-2]
         nb_guess = int(prev_turn.hint.nb_cards) + 1
         print(f"Tour de l'agent ; vous avez {nb_guess} essais.")
+        print(f"Vous pouvez passer votre tour en pressant les touches CTRL + C")
 
         cards_chosen_agent = []
         for i in range(0, int(nb_guess)):
-            card_input = input("Carte à deviner : ")
-            card_found = check_card(card_input, list_cards)
-            while not card_found:
-                card_input = input("Veuillez choisir une carte existante. Carte à deviner : ")
-                card_found = check_card(card_input, list_cards)
-            self.game.reveal_card(card_found)
+            try:
 
-            match card_found.color:
-                case 'black':
-                    print(f'FIN DE LA PARTIE')
-                    return 'END'
-                case 'yellow':
-                    print(f'Carte jaune ; tour fini')
-                    return 'PASS'
-                case 'red':
-                    if self.team.color == 'red':
-                        print(f'Carte {card_found} était une carte rouge ; continuez')
-                        continue
-                    else:
-                        print(f"Carte {card_found} était une carte rouge ; au tour de l'équipe adversaire")
+                card_input = input("Carte à deviner : ")
+                card_found = check_card(card_input, list_cards)
+                while not card_found:
+                    card_input = input("Veuillez choisir une carte existante. Carte à deviner : ")
+                    card_found = check_card(card_input, list_cards)
+                self.game.reveal_card(card_found)
+
+                match card_found.color:
+                    case 'black':
+                        print(f'FIN DE LA PARTIE')
+                        return 'END'
+                    case 'yellow':
+                        print(f'Carte jaune ; tour fini')
                         return 'PASS'
-                case 'blue':
-                    if self.team.color == 'blue':
-                        print(f'Carte {card_found} était une carte bleue ; continuez')
-                        continue
-                    else:
-                        print(f"Carte {card_found} était une carte bleue ; au tour de l'équipe adversaire")
-                        return 'PASS'
+                    case 'red':
+                        if self.team.color == 'red':
+                            print(f'Carte {card_found} était une carte rouge ; continuez')
+                            self.team.cards_found += 1
+                            continue
+                        else:
+                            print(f"Carte {card_found} était une carte rouge ; au tour de l'équipe adversaire")
+                            other_team = next(team for team in [self.game.team1, self.game.team2] if team.color != self.team.color)
+                            other_team.cards_found += 1
+                            return 'PASS'
+                    case 'blue':
+                        if self.team.color == 'blue':
+                            print(f'Carte {card_found} était une carte bleue ; continuez')
+                            self.team.cards_found += 1
+                            continue
+                        else:
+                            print(f"Carte {card_found} était une carte bleue ; au tour de l'équipe adversaire")
+                            other_team = next(team for team in [self.game.team1, self.game.team2] if team.color != self.team.color)
+                            other_team.cards_found += 1
+                            return 'PASS'
             # cards_chosen_agent.append(card_found)
-            return 'DONE'
+                return 'DONE'
+            except KeyboardInterrupt:
+                return 'DONE'
 
 
 class Game:
@@ -213,6 +233,7 @@ class Game:
         while continue_game:
             find_player = next(player for player in curr_team.players if player.role == curr_role)
             curr_turn = Turn(i_turn, curr_team, find_player, self)
+
             print(curr_turn)
 
             self.display(curr_turn)
