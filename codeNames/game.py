@@ -4,14 +4,20 @@ sys.path.insert(1, '.')
 
 import random
 import os
+import spacy
+import gensim.downloader as api
 
-from codeNames.base_elements.word import Word, Hint
+from codeNames.base_elements.word import Word, Clue
 from codeNames.base_elements.card import Card
 from typing import List
 from termcolor import colored
+# from gensim.models.keyedvectors import KeyedVectors
+from itertools import combinations
 
 PROJECT_PATH = os.path.abspath(os.path.dirname(__file__))
-LIST_WORDS = open(f'{PROJECT_PATH}{os.path.sep}resources{os.path.sep}words.txt').read().splitlines()
+LIST_WORDS = open(f'{PROJECT_PATH}{os.path.sep}resources{os.path.sep}english-nouns.txt').read().splitlines()
+GOOG_VECTOR = api.load("glove-twitter-25")
+nlp = spacy.load("en_core_web_sm")
 
 
 class Team:
@@ -69,7 +75,7 @@ class Turn:
         self.player = player
         self.game = game
         self.game.turns.append(self)
-        self.hint: Hint = None
+        self.clue: Clue = None
 
     def __str__(self):
         # return f"{self.id}, {self.team}, {self.player}"
@@ -80,34 +86,40 @@ class Turn:
 
     def action_turn(self, list_cards: List[Card]) -> bool:
         if self.player.role == 'spy':
-            hint = self.give_hint(list_cards)
-            self.hint = hint
-            print(f"L'indice {hint.form} a été donné pour trouver {hint.nb_cards} carte(s).")
+            clue = self.give_clue(list_cards, ai=True)
+            self.clue = clue
+            print(f"L'indice {clue.form} a été donné pour trouver {clue.nb_cards} carte(s).")
             return True
         else:
             return False if self.guess(list_cards) == 'END' or self.team.wins() else True
 
-    def give_hint(self, list_cards: List[Card]) -> Hint:
-        hint_given = input("Donnez un indice : ")
-        print("Vous avez saisi :", hint_given)
+    def give_clue(self, list_cards: List[Card], ai: bool = False) -> Clue:
+        if ai:
+            list_card_team = [c.word.lower() for c in list_cards if c.color == self.team.color]
+            clue_given, pairs_card = ai_give_clue(list_card_team)
+            cards_chosen = [check_card(c, list_cards) for c in pairs_card]
+            nb_cards = 2
+        else:
+            clue_given = input("Donnez un indice : ")
+            print("Vous avez saisi :", clue_given)
 
-        nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
-        print("Vous avez saisi :", nb_cards)
-        cards_chosen = []
+            nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
+            print("Vous avez saisi :", nb_cards)
+            cards_chosen = []
 
-        for i in range(0, int(nb_cards)):
-            card_input = input("Carte à faire deviner : ")
-            card_found = check_card(card_input, list_cards)
-            while not card_found:
-                card_input = input("Veuillez choisir une carte existante. Carte à faire deviner : ")
+            for i in range(0, int(nb_cards)):
+                card_input = input("Carte à faire deviner : ")
                 card_found = check_card(card_input, list_cards)
-            cards_chosen.append(card_found)
+                while not card_found:
+                    card_input = input("Veuillez choisir une carte existante. Carte à faire deviner : ")
+                    card_found = check_card(card_input, list_cards)
+                cards_chosen.append(card_found)
 
-        return Hint(hint_given, cards_chosen, nb_cards)
+        return Clue(clue_given, cards_chosen, nb_cards)
 
     def guess(self, list_cards: List[Card]) -> str:
         prev_turn = self.game.turns[-2]
-        nb_guess = int(prev_turn.hint.nb_cards) + 1
+        nb_guess = int(prev_turn.clue.nb_cards) + 1
         print(f"Tour de l'agent ; vous avez {nb_guess} essais.")
         print(f"Vous pouvez passer votre tour en pressant les touches CTRL + C")
 
@@ -136,7 +148,8 @@ class Turn:
                             continue
                         else:
                             print(f"Carte {card_found} était une carte rouge ; au tour de l'équipe adversaire")
-                            other_team = next(team for team in [self.game.team1, self.game.team2] if team.color != self.team.color)
+                            other_team = next(
+                                team for team in [self.game.team1, self.game.team2] if team.color != self.team.color)
                             other_team.cards_found += 1
                             return 'PASS'
                     case 'blue':
@@ -146,10 +159,11 @@ class Turn:
                             continue
                         else:
                             print(f"Carte {card_found} était une carte bleue ; au tour de l'équipe adversaire")
-                            other_team = next(team for team in [self.game.team1, self.game.team2] if team.color != self.team.color)
+                            other_team = next(
+                                team for team in [self.game.team1, self.game.team2] if team.color != self.team.color)
                             other_team.cards_found += 1
                             return 'PASS'
-            # cards_chosen_agent.append(card_found)
+                # cards_chosen_agent.append(card_found)
                 return 'DONE'
             except KeyboardInterrupt:
                 return 'DONE'
@@ -246,6 +260,39 @@ class Game:
             curr_role = 'agent' if curr_role == 'spy' else 'spy'
             i_turn += 1
             print("=======")
+
+
+def similarity_score(pairs):
+    try:
+        return GOOG_VECTOR.similarity(pairs[0], pairs[1])
+    except KeyError as e:
+        return 0.0
+
+
+def same_lemma(word, list_card_words):
+    doc_word = nlp(word)
+    list_doc_card = [nlp(mot) for mot in list_card_words]
+    return True if any(doc_card[0].lemma_ == doc_word[0].lemma_
+                       for doc_card in list_doc_card) else False
+
+
+def valid_word(list_word_similar, list_original_words):
+    for word in list_word_similar:
+        if not same_lemma(word[0], list_original_words):
+            return word
+
+
+def choose_word(list_words):
+    scores = list(map(similarity_score, list_pairs := list(combinations(list_words, 2))))
+    highest_pair = list_pairs[scores.index(max(scores))]
+    word_most_similar = GOOG_VECTOR.most_similar(positive=[*highest_pair])
+    chosen_word = valid_word(word_most_similar, list_words)
+    print(f'{highest_pair} => {chosen_word}')
+    return chosen_word, highest_pair
+
+
+def ai_give_clue(list_w):
+    return choose_word(list_w)
 
 
 def check_card(given_word: str, list_cards_in_game: List[Card]):

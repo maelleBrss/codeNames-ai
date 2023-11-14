@@ -20,7 +20,7 @@ class Word:
         self.form = new_form
 
 
-class Hint(Word):
+class Clue(Word):
     def __init__(self, form: str, chosen_cards: List[Card], nb_cards: int):
         Word.__init__(self, form)
         self.chosen_cards = chosen_cards
