@@ -14,6 +14,9 @@ from termcolor import colored
 # from gensim.models.keyedvectors import KeyedVectors
 from itertools import combinations
 
+import tkinter as tk
+from codeNames.ui.base import *
+
 PROJECT_PATH = os.path.abspath(os.path.dirname(__file__))
 LIST_WORDS = open(f'{PROJECT_PATH}{os.path.sep}resources{os.path.sep}english-nouns.txt').read().splitlines()
 GOOG_VECTOR = api.load("glove-twitter-25")
@@ -104,9 +107,13 @@ class Turn:
             nb_cards = 2
         else:
             clue_given = input("Donnez un indice : ")
+
             print("Vous avez saisi :", clue_given)
 
             nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
+            while not nb_cards.isdigit():
+                print(f'Veuillez rentrer un chiffre valide.')
+                nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
             print("Vous avez saisi :", nb_cards)
             cards_chosen = []
 
@@ -255,6 +262,7 @@ class Game:
         self.id = id
         self.team1 = team1
         self.team2 = team2
+        self.window = tk.Tk()
         self.words: List[Word] = self.create_pool_words()
         self.cards: List[Card] = self.create_cards()
         self.turns: List[Turn] = []
@@ -269,6 +277,7 @@ class Game:
         print(f'Team {self.team2.name} -- {self.team2.is_first} -- {self.team2.color} -- {self.team2.players}')
         print()
         print()
+        self.window.title('== CodeNames-ai ==')
         self.run_game()
 
     def check_requirements(self) -> None:
@@ -313,6 +322,31 @@ class Game:
                 else:
                     print(f"| {colored(formatted_name, card.color) if card.revealed else formatted_name} ", end=" ")
 
+    def display_tinkter(self, current_turn: Turn, tk_text_widget: tk.Text) -> None:
+        max_length = max(len(card.word) for card in self.cards)
+
+        for color in set(card.color for card in self.cards):
+            tk_text_widget.tag_configure(color, foreground=color)
+
+        for i, card in enumerate(self.cards, start=1):
+            formatted_name = f"{card.word:{max_length}}"
+            if i % 5 == 0:
+                if current_turn.player.role == 'spy':
+                    tk_text_widget.insert(tk.END, f"| {formatted_name} |", card.color)
+                else:
+                    tag = card.color if card.revealed else ''
+                    tk_text_widget.insert(tk.END, f"| {formatted_name} |", tag)
+                if i < len(self.cards):
+                    tk_text_widget.insert(tk.END, "\n" + "+-" + "-" * (6 * max_length) + "-+\n")
+            else:
+                if current_turn.player.role == 'spy':
+                    tk_text_widget.insert(tk.END, f"| {formatted_name} ", card.color)
+                else:
+                    tag = card.color if card.revealed else ''
+                    tk_text_widget.insert(tk.END, f"| {formatted_name} ", tag)
+
+        tk_text_widget.insert(tk.END, "\n")
+
     def reveal_card(self, input_card: Card) -> None:
         for card in self.cards:
             if card == input_card:
@@ -331,7 +365,9 @@ class Game:
 
             print(curr_turn)
 
-            self.display(curr_turn)
+            # self.display(curr_turn)
+            display_ui(self, self.window)
+
             continue_game = curr_turn.action_turn(self.cards)
 
             curr_team = self.team1 if (curr_team == self.team2 and curr_role == 'agent') else (
@@ -366,13 +402,12 @@ def valid_word(list_word_similar, list_original_words):
 def check_card(given_word: str, list_cards_in_game: List[Card]):
     return next((card for card in list_cards_in_game if card.word == given_word.upper()), None)
 
-
-team_1 = Team('team_1')
-team_A = Team('team_A')
-p1 = Player('p1', team_1)
-p2 = Player('p2', team_1)
-pA = Player('pA', team_A)
-pB = Player('pB', team_A)
-
-game_test = Game('test', team_1, team_A)
-game_test.setup()
+# team_1 = Team('team_1')
+# team_A = Team('team_A')
+# p1 = Player('p1', team_1)
+# p2 = Player('p2', team_1)
+# pA = Player('pA', team_A)
+# pB = Player('pB', team_A)
+#
+# game_test = Game('test', team_1, team_A)
+# game_test.setup()
