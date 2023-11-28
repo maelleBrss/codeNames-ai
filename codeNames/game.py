@@ -6,6 +6,8 @@ import random
 import os
 import spacy
 import gensim.downloader as api
+import functools
+import tkinter.ttk as ttk
 
 from codeNames.base_elements.word import Word, Clue
 from codeNames.base_elements.card import Card
@@ -72,13 +74,17 @@ class Player:
 
 
 class Turn:
-    def __init__(self, id: str, team: Team, player: Player, game: 'Game'):
-        self.id = id
+    _id_counter = 0
+
+    def __init__(self, team: Team, player: Player, game: 'Game'):
+
         self.team = team
         self.player = player
         self.game = game
         self.game.turns.append(self)
         self.clue: Clue = None
+        Turn._id_counter += 1
+        self.id = Turn._id_counter
 
     def __str__(self):
         # return f"{self.id}, {self.team}, {self.player}"
@@ -89,9 +95,10 @@ class Turn:
 
     def action_turn(self, list_cards: List[Card]) -> bool:
         if self.player.role == 'spy':
-            clue = self.give_clue(list_cards, ai=False)
-            self.clue = clue
-            print(f"L'indice {clue.form} a été donné pour trouver {clue.nb_cards} carte(s).")
+            if not self.clue:
+                clue = self.give_clue(list_cards, ai=False)
+                self.clue = clue
+            print(f"L'indice {self.clue.form} a été donné pour trouver {self.clue.nb_cards} carte(s).")
             return True
         else:
             prev_turn = self.game.turns[-2]
@@ -100,30 +107,32 @@ class Turn:
 
     def give_clue(self, list_cards: List[Card], ai: bool = False) -> Clue:
         if ai:
-            list_card_team = [c.word.lower() for c in list_cards if c.color == self.team.color and not c.revealed]
-            list_other_card = [c.word.lower() for c in list_cards if c.color != self.team.color and not c.revealed]
+            list_card_team = [c.word.lower() for c in list_cards
+                              if c.color == self.team.color and not c.revealed]
+            list_other_card = [c.word.lower() for c in list_cards
+                               if c.color != self.team.color and not c.revealed]
             clue_given, pairs_card = self.ai_give_clue(list_card_team, list_other_card)
             cards_chosen = [check_card(c, list_cards) for c in pairs_card]
             nb_cards = 2
-        else:
-            clue_given = input("Donnez un indice : ")
+        # else:
+        # clue_given = input("Donnez un indice : ")
+        #
+        # print("Vous avez saisi :", clue_given)
 
-            print("Vous avez saisi :", clue_given)
+        # nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
+        # while not nb_cards.isdigit():
+        #     print(f'Veuillez rentrer un chiffre valide.')
+        #     nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
+        # print("Vous avez saisi :", nb_cards)
+        # cards_chosen = []
 
-            nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
-            while not nb_cards.isdigit():
-                print(f'Veuillez rentrer un chiffre valide.')
-                nb_cards = input("Donnez le nombre de cartes à faire deviner : ")
-            print("Vous avez saisi :", nb_cards)
-            cards_chosen = []
-
-            for i in range(0, int(nb_cards)):
-                card_input = input("Carte à faire deviner : ")
-                card_found = check_card(card_input, list_cards)
-                while not card_found:
-                    card_input = input("Veuillez choisir une carte existante. Carte à faire deviner : ")
-                    card_found = check_card(card_input, list_cards)
-                cards_chosen.append(card_found)
+        # for i in range(0, int(nb_cards)):
+        #     card_input = input("Carte à faire deviner : ")
+        #     card_found = check_card(card_input, list_cards)
+        #     while not card_found:
+        #         card_input = input("Veuillez choisir une carte existante. Carte à faire deviner : ")
+        #         card_found = check_card(card_input, list_cards)
+        #     cards_chosen.append(card_found)
 
         return Clue(clue_given, cards_chosen, nb_cards)
 
@@ -262,10 +271,12 @@ class Game:
         self.id = id
         self.team1 = team1
         self.team2 = team2
-        self.window = tk.Tk()
+        # self.window = tk.Tk()
+        self.ui = None
         self.words: List[Word] = self.create_pool_words()
         self.cards: List[Card] = self.create_cards()
         self.turns: List[Turn] = []
+        self.continue_game = True
 
     def setup(self) -> None:
         print(f'=== Game {self.id} ===')
@@ -277,7 +288,7 @@ class Game:
         print(f'Team {self.team2.name} -- {self.team2.is_first} -- {self.team2.color} -- {self.team2.players}')
         print()
         print()
-        self.window.title('== CodeNames-ai ==')
+        # self.ui.window.title('== CodeNames-ai ==')
         self.run_game()
 
     def check_requirements(self) -> None:
@@ -322,53 +333,110 @@ class Game:
                 else:
                     print(f"| {colored(formatted_name, card.color) if card.revealed else formatted_name} ", end=" ")
 
+    def on_validate(self, current_turn):
+        entered_text = self.ui.tk_entry_widget.get()
+        selected_number = self.ui.tk_combobox.get()
+
+        if entered_text and selected_number:
+            print(f"Texte entré : {entered_text}, Nb cartes : {selected_number}")
+
+            current_turn.clue = Clue(form=entered_text, nb_cards=selected_number)
+            self.ui.text_widget.insert(tk.END,
+                                       f"Texte entré : {entered_text}, Nb cartes : {selected_number}\n")
+        else:
+            print("Veuillez saisir à la fois un mot et choisir un chiffre.")
+
+        self.update_game_state()
+        self.pass_to_next_turn()
+
     def display_tinkter(self, current_turn: Turn, tk_text_widget: tk.Text) -> None:
+        tk_text_widget.delete('1.0', tk.END)
+
         max_length = max(len(card.word) for card in self.cards)
+
+        if current_turn.player.role == 'spy':
+            numbers = [str(i) for i in range(1, 8)]
+
+            self.ui.tk_entry_widget.pack(pady=20, fill=tk.X)
+            self.ui.tk_combobox.set(numbers[0])
+            self.ui.tk_combobox.pack(pady=10)
+            self.ui.tk_validate_button.pack(pady=10)
+
+        else:
+            self.ui.tk_entry_widget.pack_forget()
+            self.ui.tk_combobox.pack_forget()
+            self.ui.tk_validate_button.pack_forget()
 
         for color in set(card.color for card in self.cards):
             tk_text_widget.tag_configure(color, foreground=color)
 
         for i, card in enumerate(self.cards, start=1):
             formatted_name = f"{card.word:{max_length}}"
+            tag = f"tag_{i}"
+            tk_text_widget.tag_configure(tag, foreground=card.color)
+            if current_turn.player.role == 'agent':
+                tk_text_widget.tag_bind(tag, "<Button-1>", functools.partial(self.on_word_click, card=card))
+
             if i % 5 == 0:
                 if current_turn.player.role == 'spy':
-                    tk_text_widget.insert(tk.END, f"| {formatted_name} |", card.color)
+                    tk_text_widget.insert(tk.END, f"| {formatted_name} |", tag)
                 else:
-                    tag = card.color if card.revealed else ''
+                    tag = tag if card.revealed else ''
                     tk_text_widget.insert(tk.END, f"| {formatted_name} |", tag)
                 if i < len(self.cards):
                     tk_text_widget.insert(tk.END, "\n" + "+-" + "-" * (6 * max_length) + "-+\n")
             else:
                 if current_turn.player.role == 'spy':
-                    tk_text_widget.insert(tk.END, f"| {formatted_name} ", card.color)
+                    tk_text_widget.insert(tk.END, f"| {formatted_name} ", tag)
                 else:
-                    tag = card.color if card.revealed else ''
+                    tag = tag if card.revealed else ''
                     tk_text_widget.insert(tk.END, f"| {formatted_name} ", tag)
 
         tk_text_widget.insert(tk.END, "\n")
+
+    def on_word_click(self, event, card):
+        print(f"Clicked on {card.word}!")
 
     def reveal_card(self, input_card: Card) -> None:
         for card in self.cards:
             if card == input_card:
                 card.revealed = True
 
+    def update_game_state(self):
+        print(f'dernier tour joué: {self.turns[-1]}')
+
+    def pass_to_next_turn(self):
+        curr_team = self.turns[-1].team
+        curr_role = self.turns[-1].player.role
+
+        next_team = self.team1 if (curr_team == self.team2 and curr_role == 'agent') else (
+            self.team2 if (curr_team == self.team1 and curr_role == 'agent') else (
+                self.team1 if (curr_team == self.team1 and curr_role == 'spy') else self.team2))
+        next_role = 'agent' if curr_role == 'spy' else 'spy'
+        find_player = next(player for player in next_team.players if player.role == next_role)
+
+        next_turn = Turn(team=next_team, player=find_player, game=self)
+        self.ui.run_ui()
+
     def run_game(self) -> None:
-        continue_game = True
+        # continue_game = True
         i_turn = 1
         curr_role = 'spy'
         curr_team = next(team for team in [self.team1, self.team2] if team.is_first)
 
+        find_player = next(player for player in curr_team.players if player.role == curr_role)
+        curr_turn = Turn(curr_team, find_player, self)
+        root = tk.Tk()
+        self.ui = GameUI(root, self)
+        self.ui.run_ui()
+
         # while i_turn <= 7:
-        while continue_game:
+        while self.continue_game:
             find_player = next(player for player in curr_team.players if player.role == curr_role)
-            curr_turn = Turn(i_turn, curr_team, find_player, self)
+            curr_turn = Turn(curr_team, find_player, self)
 
             print(curr_turn)
-
-            # self.display(curr_turn)
-            display_ui(self, self.window)
-
-            continue_game = curr_turn.action_turn(self.cards)
+            self.continue_game = curr_turn.action_turn(self.cards)
 
             curr_team = self.team1 if (curr_team == self.team2 and curr_role == 'agent') else (
                 self.team2 if (curr_team == self.team1 and curr_role == 'agent') else (

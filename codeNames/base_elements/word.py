@@ -21,7 +21,7 @@ class Word:
 
 
 class Clue(Word):
-    def __init__(self, form: str, chosen_cards: List[Card], nb_cards: int):
+    def __init__(self, form: str, nb_cards: int, chosen_cards: List[Card] = None):
         Word.__init__(self, form)
         self.chosen_cards = chosen_cards
         self.nb_cards = nb_cards
