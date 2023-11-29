@@ -3,36 +3,6 @@ import tkinter as tk
 import tkinter as tk
 import tkinter.ttk as ttk
 
-#
-# def display_ui(game, window):
-#     frame = tk.Frame(window)
-#     frame.pack(expand=True)
-#
-#     main_frame = tk.Frame(window)
-#     main_frame.pack(expand=True, fill=tk.BOTH)
-#
-#     left_column = tk.Frame(main_frame, bg="white", width=150)
-#     left_column.pack(side=tk.LEFT, fill=tk.Y)
-#
-#     text_frame = tk.Frame(main_frame)
-#     text_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-#
-#     text_widget = tk.Text(text_frame,
-#                           wrap=tk.WORD)
-#     text_widget.pack(pady=20, expand=True,
-#                      fill=tk.BOTH)
-#
-#     right_column = tk.Frame(main_frame, bg="white", width=150)
-#     right_column.pack(side=tk.LEFT, fill=tk.Y)
-#
-#     entry_widget = tk.Entry(main_frame)
-#     validate_button = tk.Button(main_frame, text="Valider", command=lambda: game.on_validate(entry_widget, text_widget))
-#
-#     game.display_tinkter(game.turns[-1], text_widget, entry_widget)
-#
-#     window.mainloop()
-
-
 class GameUI:
     def __init__(self, window, game):
         self.window = window
@@ -44,16 +14,16 @@ class GameUI:
         self.main_frame = tk.Frame(self.window)
         self.main_frame.pack(expand=True, fill=tk.BOTH)
 
-        self.left_column = tk.Frame(self.main_frame, bg="white", width=150)
+        self.left_column = tk.Frame(self.main_frame, bg="lightcoral", width=150)
         self.left_column.pack(side=tk.LEFT, fill=tk.Y)
 
         self.text_frame = tk.Frame(self.main_frame)
         self.text_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self.text_widget = tk.Text(self.text_frame, wrap=tk.WORD)
+        self.text_widget = tk.Text(self.text_frame, wrap=tk.WORD, bg="aliceblue")
         self.text_widget.pack(pady=20, expand=True, fill=tk.BOTH)
 
-        self.right_column = tk.Frame(self.main_frame, bg="white", width=150)
+        self.right_column = tk.Frame(self.main_frame, bg="lightblue2", width=150)
         self.right_column.pack(side=tk.LEFT, fill=tk.Y)
 
         self.tk_entry_widget = tk.Entry(self.main_frame)

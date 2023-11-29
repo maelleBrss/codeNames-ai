@@ -159,7 +159,7 @@ class Turn:
                     self.game.reveal_card(card_found)
 
                     match card_found.color:
-                        case 'black':
+                        case 'purple':
                             print(f'FIN DE LA PARTIE')
                             return 'END'
                         case 'yellow':
@@ -229,7 +229,7 @@ class Turn:
             self.game.reveal_card(card_found)
 
             match card_found.color:
-                case 'black':
+                case 'purple':
                     print(f'FIN DE LA PARTIE')
                     return 'END'
                 case 'yellow':
@@ -277,6 +277,10 @@ class Game:
         self.cards: List[Card] = self.create_cards()
         self.turns: List[Turn] = []
         self.continue_game = True
+        self.click_count = 0
+
+    def reset_click_count(self):
+        self.click_count = 0
 
     def setup(self) -> None:
         print(f'=== Game {self.id} ===')
@@ -304,7 +308,7 @@ class Game:
 
     def create_cards(self) -> List[Card]:
         list_cards = []
-        occurrences = {'red': 8, 'blue': 9, 'yellow': 7, 'black': 1}
+        occurrences = {'red': 8, 'blue': 9, 'yellow': 7, 'purple': 1}
         mapping_color = []
 
         for value, count in occurrences.items():
@@ -353,6 +357,10 @@ class Game:
         tk_text_widget.delete('1.0', tk.END)
 
         max_length = max(len(card.word) for card in self.cards)
+        nb_clicked_cards = 0
+
+        print(f'Tour {current_turn.team} - {current_turn.player} - {current_turn.clue}')
+        tk_text_widget.insert(tk.END, f'Tour {current_turn.team} - {current_turn.player} - {current_turn.clue} \n\n')
 
         if current_turn.player.role == 'spy':
             numbers = [str(i) for i in range(1, 8)]
@@ -370,18 +378,23 @@ class Game:
         for color in set(card.color for card in self.cards):
             tk_text_widget.tag_configure(color, foreground=color)
 
+        tk_text_widget.config(state=tk.NORMAL)
+
         for i, card in enumerate(self.cards, start=1):
             formatted_name = f"{card.word:{max_length}}"
             tag = f"tag_{i}"
             tk_text_widget.tag_configure(tag, foreground=card.color)
-            if current_turn.player.role == 'agent':
-                tk_text_widget.tag_bind(tag, "<Button-1>", functools.partial(self.on_word_click, card=card))
+            tk_text_widget.tag_bind(tag, "<Button-1>", functools.partial(self.on_word_click, card=card))
 
             if i % 5 == 0:
                 if current_turn.player.role == 'spy':
                     tk_text_widget.insert(tk.END, f"| {formatted_name} |", tag)
                 else:
-                    tag = tag if card.revealed else ''
+                    # tag = tag if card.revealed else ''
+                    if card.revealed:
+                        tag = tag
+                    else:
+                        tk_text_widget.tag_configure(tag, foreground="black")
                     tk_text_widget.insert(tk.END, f"| {formatted_name} |", tag)
                 if i < len(self.cards):
                     tk_text_widget.insert(tk.END, "\n" + "+-" + "-" * (6 * max_length) + "-+\n")
@@ -389,13 +402,34 @@ class Game:
                 if current_turn.player.role == 'spy':
                     tk_text_widget.insert(tk.END, f"| {formatted_name} ", tag)
                 else:
-                    tag = tag if card.revealed else ''
+                    # tag = tag if card.revealed else ''
+                    if card.revealed:
+                        tag = tag
+                    else:
+                        tk_text_widget.tag_configure(tag, foreground="black")
                     tk_text_widget.insert(tk.END, f"| {formatted_name} ", tag)
 
         tk_text_widget.insert(tk.END, "\n")
 
     def on_word_click(self, event, card):
+        max_cards = int(self.turns[-2].clue.nb_cards) + 1 if len(self.turns) > 1 else int(self.turns[-1].clue.nb_cards) + 1
         print(f"Clicked on {card.word}!")
+        self.click_count += 1
+
+        self.ui.text_widget.config(state=tk.NORMAL)
+        self.ui.text_widget.insert(tk.END, f"Carte {card.word} choisie \n")
+        self.ui.text_widget.config(state=tk.DISABLED)
+
+        print(f'click count: {self.click_count}')
+        print(f'max card: {max_cards}')
+
+        if self.click_count >= max_cards:
+            self.ui.text_widget.config(state=tk.NORMAL)
+            self.ui.text_widget.insert(tk.END, "Fin du tour \n")
+            # self.ui.text_widget.config(state=tk.DISABLED)
+
+            self.reset_click_count()
+            self.pass_to_next_turn()
 
     def reveal_card(self, input_card: Card) -> None:
         for card in self.cards:
@@ -403,7 +437,8 @@ class Game:
                 card.revealed = True
 
     def update_game_state(self):
-        print(f'dernier tour joué: {self.turns[-1]}')
+        # print(f'dernier tour joué: {self.turns[-1].clue}')
+        print()
 
     def pass_to_next_turn(self):
         curr_team = self.turns[-1].team
@@ -431,20 +466,21 @@ class Game:
         self.ui.run_ui()
 
         # while i_turn <= 7:
-        while self.continue_game:
-            find_player = next(player for player in curr_team.players if player.role == curr_role)
-            curr_turn = Turn(curr_team, find_player, self)
+        # while self.continue_game:
+        find_player = next(player for player in curr_team.players if player.role == curr_role)
+        curr_turn = Turn(curr_team, find_player, self)
 
-            print(curr_turn)
-            self.continue_game = curr_turn.action_turn(self.cards)
+        print(curr_turn)
 
-            curr_team = self.team1 if (curr_team == self.team2 and curr_role == 'agent') else (
-                self.team2 if (curr_team == self.team1 and curr_role == 'agent') else (
-                    self.team1 if (curr_team == self.team1 and curr_role == 'spy') else self.team2))
-
-            curr_role = 'agent' if curr_role == 'spy' else 'spy'
-            i_turn += 1
-            print("=======")
+            # self.continue_game = curr_turn.action_turn(self.cards)
+            #
+            # curr_team = self.team1 if (curr_team == self.team2 and curr_role == 'agent') else (
+            #     self.team2 if (curr_team == self.team1 and curr_role == 'agent') else (
+            #         self.team1 if (curr_team == self.team1 and curr_role == 'spy') else self.team2))
+            #
+            # curr_role = 'agent' if curr_role == 'spy' else 'spy'
+            # i_turn += 1
+            # print("=======")
 
 
 def similarity_score(pairs):
