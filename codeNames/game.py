@@ -7,6 +7,7 @@ import os
 import spacy
 import gensim.downloader as api
 import functools
+import time
 import tkinter.ttk as ttk
 
 from codeNames.base_elements.word import Word, Clue
@@ -85,6 +86,7 @@ class Turn:
         self.clue: Clue = None
         Turn._id_counter += 1
         self.id = Turn._id_counter
+        self.game.reset_click_count()
 
     def __str__(self):
         # return f"{self.id}, {self.team}, {self.player}"
@@ -162,7 +164,7 @@ class Turn:
                         case 'purple':
                             print(f'FIN DE LA PARTIE')
                             return 'END'
-                        case 'yellow':
+                        case 'lightgoldenrod3':
                             print(f'Carte jaune ; tour fini')
                             return 'PASS'
                         case 'red':
@@ -216,6 +218,66 @@ class Turn:
     def ai_give_clue(self, list_good_w, list_wrong_w):
         return self.choose_word(list_good_w, list_wrong_w)
 
+
+    def choose_card2(self, card_clicked):
+        self.game.reveal_card(card_clicked)
+
+        match card_clicked.color:
+            case 'purple':
+                self.game.ui.text_widget.insert(tk.END, f'FIN DE LA PARTIE \n\n')
+                self.game.ui.text_widget.update_idletasks()
+
+            case 'lightgoldenrod3':
+                self.game.ui.text_widget.insert(tk.END, f'Carte jaune, tour fini \n\n')
+                self.game.ui.text_widget.update_idletasks()
+                time.sleep(0.5)
+                self.game.pass_to_next_turn()
+
+            case 'red':
+                if self.team.color == 'red':
+                    if self.team.color == 'red':
+                        self.game.ui.text_widget.insert(tk.END, f'Carte {card_clicked} était une carte rouge ; continuez \n\n')
+                        self.team.cards_found += 1
+                        self.game.display_tinkter(self, self.game.ui.text_widget)
+
+                else:
+                    self.game.ui.text_widget.insert(tk.END,
+                                                    f"Carte {card_clicked} était une carte rouge ; au tour de l'équipe adversaire \n\n")
+
+                    self.game.ui.text_widget.update_idletasks()
+                    time.sleep(0.5)
+
+                    other_team = next(
+                        team for team in [self.game.team1, self.game.team2] if
+                        team.color != self.team.color)
+                    other_team.cards_found += 1
+                    time.sleep(0.5)
+                    self.game.pass_to_next_turn()
+
+            case 'blue':
+                if self.team.color == 'blue':
+                    self.game.ui.text_widget.insert(tk.END,
+                                                    f'Carte {card_clicked} était une carte bleue ; continuez \n\n')
+
+                    self.team.cards_found += 1
+                    self.game.display_tinkter(self, self.game.ui.text_widget)
+
+                else:
+                    self.game.ui.text_widget.insert(tk.END,
+                                                    f"Carte {card_clicked} était une carte bleue ; au tour de l'équipe adversaire \n\n")
+
+                    self.game.ui.text_widget.update_idletasks()
+                    time.sleep(0.5)
+
+                    other_team = next(
+                        team for team in [self.game.team1, self.game.team2] if
+                        team.color != self.team.color)
+                    other_team.cards_found += 1
+                    time.sleep(0.5)
+                    self.game.pass_to_next_turn()
+
+
+
     def choose_card(self, clue, list_words, nb_guess):
         list_pair_score = []
         for pair in [(x, clue.lower()) for x in list_words]:
@@ -232,7 +294,7 @@ class Turn:
                 case 'purple':
                     print(f'FIN DE LA PARTIE')
                     return 'END'
-                case 'yellow':
+                case 'lightgoldenrod3':
                     print(f'Carte jaune ; tour fini')
                     return 'PASS'
                 case 'red':
@@ -308,7 +370,7 @@ class Game:
 
     def create_cards(self) -> List[Card]:
         list_cards = []
-        occurrences = {'red': 8, 'blue': 9, 'yellow': 7, 'purple': 1}
+        occurrences = {'red': 8, 'blue': 9, 'lightgoldenrod3': 7, 'purple': 1}
         mapping_color = []
 
         for value, count in occurrences.items():
@@ -412,13 +474,28 @@ class Game:
         tk_text_widget.insert(tk.END, "\n")
 
     def on_word_click(self, event, card):
-        max_cards = int(self.turns[-2].clue.nb_cards) + 1 if len(self.turns) > 1 else int(self.turns[-1].clue.nb_cards) + 1
+        try:
+            max_cards = int(self.turns[-2].clue.nb_cards) + 1
+        except AttributeError:
+            try:
+                max_cards = int(self.turns[-1].clue.nb_cards) + 1
+            except AttributeError:
+                # case where spymaster clicks on a card @TODO: disable on_word_click for spymaster
+                return
+
         print(f"Clicked on {card.word}!")
         self.click_count += 1
 
+        # self.ui.text_widget.config(state=tk.NORMAL)
+        # self.ui.text_widget.insert(tk.END, f"Carte {card.word} choisie \n")
+        # # self.ui.text_widget.config(state=tk.DISABLED)
+
         self.ui.text_widget.config(state=tk.NORMAL)
         self.ui.text_widget.insert(tk.END, f"Carte {card.word} choisie \n")
-        self.ui.text_widget.config(state=tk.DISABLED)
+        # self.ui.text_widget.config(state=tk.DISABLED)
+        self.ui.text_widget.update_idletasks()
+
+        self.turns[-1].choose_card2(card)
 
         print(f'click count: {self.click_count}')
         print(f'max card: {max_cards}')
@@ -427,7 +504,6 @@ class Game:
             self.ui.text_widget.config(state=tk.NORMAL)
             self.ui.text_widget.insert(tk.END, "Fin du tour \n")
             # self.ui.text_widget.config(state=tk.DISABLED)
-
             self.reset_click_count()
             self.pass_to_next_turn()
 
@@ -435,6 +511,7 @@ class Game:
         for card in self.cards:
             if card == input_card:
                 card.revealed = True
+
 
     def update_game_state(self):
         # print(f'dernier tour joué: {self.turns[-1].clue}')
@@ -451,6 +528,8 @@ class Game:
         find_player = next(player for player in next_team.players if player.role == next_role)
 
         next_turn = Turn(team=next_team, player=find_player, game=self)
+        self.ui.text_widget.config(state=tk.NORMAL)
+
         self.ui.run_ui()
 
     def run_game(self) -> None:
